@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Study Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Auth gate (login / signup) -->
+  <div id="auth-overlay" class="auth-overlay" style="display:none">
+    <div class="auth-card">
+      <h2 id="auth-title">Sign in</h2>
+      <p class="auth-sub">Your topics, notes, quizzes and plans are saved to your account.</p>
+      <div class="field">
+        <label for="auth-email">Email</label>
+        <input id="auth-email" type="email" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input id="auth-password" type="password" autocomplete="current-password" />
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="auth-submit" type="button" onclick="submitAuth()">Sign in</button>
+      </div>
+      <div id="auth-status" class="status-msg"></div>
+      <p class="auth-toggle">
+        <span id="auth-toggle-text">No account?</span>
+        <button type="button" class="link-btn" onclick="toggleAuthMode()" id="auth-toggle-btn">Create one</button>
+      </p>
+    </div>
+  </div>
+
+  <div id="app-shell" style="display:none">
+
+  <div id="progress-bar" class="progress-bar"></div>
+  <header>
+    <div class="header-left">
+      <h1>AI Study Assistant</h1>
+      <p class="header-subtitle">Pick a topic &rarr; we generate notes, flashcards, a quiz, and a study plan.</p>
+    </div>
+    <div class="header-right">
+      <span id="coin-badge" class="coin-badge" title="Coins earned while studying">$ 0</span>
+      <button class="header-btn header-util-btn" type="button" onclick="switchTab('shop')" title="Upgrade shop">
+        <span class="header-util-icon">$</span> Shop
+      </button>
+      <button class="header-btn header-util-btn" type="button" onclick="switchTab('spotify')" title="Spotify">
+        <span class="header-util-icon spotify">♪</span> Spotify
+      </button>
+      <span class="header-divider" aria-hidden="true"></span>
+      <button id="profile-btn" class="header-profile-btn" type="button" onclick="switchTab('profile')" title="Open profile">
+        <span class="header-profile-star">★</span>
+        <span>Profile</span>
+      </button>
+      <span id="session-badge"></span>
+      <button id="history-btn" class="header-btn" type="button" onclick="toggleHistory()" title="View past sessions">History</button>
+      <button id="reset-btn" class="header-btn" type="button" onclick="resetSession()" title="Start a new session">New session</button>
+      <button id="logout-btn" class="header-btn" type="button" onclick="logout()" title="Log out">Log out</button>
+    </div>
+  </header>
+
+  <!-- History sidebar -->
+  <aside id="history-sidebar" class="history-sidebar" aria-hidden="true">
+    <div class="history-header">
+      <h3>Your sessions</h3>
+      <button class="link-btn" onclick="toggleHistory()">Close</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+  </aside>
+  <div id="history-backdrop" class="history-backdrop" onclick="toggleHistory()"></div>
+
+  <!-- Plant Widget -->
+  <div id="plant-widget" class="plant-widget">
+    <div class="plant-art-wrap">
+      <div id="plant-art" class="plant-art"></div>
+    </div>
+    <div class="plant-info">
+      <div class="plant-info-top">
+        <span class="plant-stage-name" id="plant-stage-name">Seed</span>
+        <span class="plant-health-label" id="plant-health-label">100% health</span>
+      </div>
+      <div class="plant-health-track">
+        <div class="plant-health-fill" id="plant-health-fill" style="width:100%"></div>
+      </div>
+      <div class="plant-hint" id="plant-hint">Study to help it grow &bull; Wrong answers make it wither</div>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="research" data-step="1">
+      <span class="tab-num">1</span> Research
+    </button>
+    <button class="tab-btn" data-tab="notes" data-step="2" data-requires="notes">
+      <span class="tab-num">2</span> Notes
+      <span class="tab-lock" aria-hidden="true">&#128274;</span>
+    </button>
+    <button class="tab-btn" data-tab="flashcards" data-step="3" data-requires="learning">
+      <span class="tab-num">3</span> Flashcards
+      <span class="tab-lock" aria-hidden="true">&#128274;</span>
+    </button>
+    <button class="tab-btn" data-tab="quiz" data-step="4" data-requires="learning">
+      <span class="tab-num">4</span> Quiz
+      <span class="tab-lock" aria-hidden="true">&#128274;</span>
+    </button>
+    <button class="tab-btn" data-tab="plan" data-step="5" data-requires="notes">
+      <span class="tab-num">5</span> Study Plan
+      <span class="tab-lock" aria-hidden="true">&#128274;</span>
+    </button>
+  </nav>
+
+  <!-- SECTION 1: Research -->
+  <section id="tab-research" class="tab-section active">
+    <h2>Start Your Research</h2>
+    <p class="section-hint">Enter a topic you want to study. Optionally upload your own notes, slides, or PDFs to include.</p>
+    <div class="card">
+      <div class="field">
+        <label for="topic-input">Topic</label>
+        <input id="topic-input" type="text" autocomplete="off" placeholder="e.g. Photosynthesis, World War II, Linear Algebra" />
+        <small class="field-hint">Press Enter to start, or use the button below.</small>
+      </div>
+
+      <div class="field">
+        <label>Search source</label>
+        <div class="source-options">
+          <label><input type="radio" name="study-source" value="both" checked onchange="updateStudySource()" /> Web + uploaded files</label>
+          <label><input type="radio" name="study-source" value="web" onchange="updateStudySource()" /> Web only</label>
+          <label><input type="radio" name="study-source" value="files" onchange="updateStudySource()" /> Files only</label>
+        </div>
+        <small class="field-hint">Choose which reference material to use for generating notes.</small>
+      </div>
+
+      <div class="field">
+        <label>Upload Files <span class="optional">(optional)</span></label>
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="file-input" accept=".pdf,.pptx,.txt,.md" multiple hidden />
+          <div class="upload-prompt">
+            <div class="upload-icon" aria-hidden="true">&#8593;</div>
+            <div>
+              <strong>Drag &amp; drop files here</strong>
+              <div class="upload-sub">or <button type="button" class="link-btn" onclick="document.getElementById('file-input').click()">browse</button> - PDF, PPTX, TXT, MD</div>
+            </div>
+          </div>
+          <div id="file-list"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="start-btn" onclick="startResearch()">Start Research</button>
+        <div id="research-status" class="status-msg"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2: Notes -->
+  <section id="tab-notes" class="tab-section">
+    <h2>Study Notes</h2>
+    <p class="section-hint">Your generated notes appear here. When you're ready, create flashcards and a quiz.</p>
+    <div id="notes-content">
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">&#128221;</div>
+        <h3>No notes yet</h3>
+        <p>Start a research topic first - we'll summarize it into structured notes.</p>
+        <button class="btn-secondary" onclick="switchTab('research')">Go to Research</button>
+      </div>
+    </div>
+    <div class="field-row learning-settings">
+      <div class="field">
+        <label for="flashcards-count">Flashcards</label>
+        <input id="flashcards-count" type="number" value="10" min="1" max="30" />
+      </div>
+      <div class="field">
+        <label for="quiz-count">Quiz questions</label>
+        <input id="quiz-count" type="number" value="5" min="1" max="20" />
+      </div>
+      <div class="field">
+        <label for="difficulty-select">Difficulty</label>
+        <select id="difficulty-select">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate" selected>Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="generate-learning-btn" style="display:none" onclick="generateLearning()">
+        Generate Flashcards &amp; Quiz
+      </button>
+      <div id="learning-status" class="status-msg"></div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: Flashcards -->
+  <section id="tab-flashcards" class="tab-section">
+    <h2>Flashcards</h2>
+    <p class="section-hint">Click a card to flip it. Use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to navigate and <kbd>Space</kbd> to flip.</p>
+    <div id="flashcard-container">
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">&#127183;</div>
+        <h3>No flashcards yet</h3>
+        <p>Generate notes first, then create flashcards from them.</p>
+        <button class="btn-secondary" onclick="switchTab('notes')">Go to Notes</button>
+      </div>
+    </div>
+    <div id="flashcard-nav" style="display:none">
+      <button class="btn-secondary" onclick="prevCard()" title="Previous (&larr;)">&#8592; Prev</button>
+      <span id="card-counter"></span>
+      <button class="btn-secondary" onclick="nextCard()" title="Next (&rarr;)">Next &#8594;</button>
+    </div>
+  </section>
+
+  <!-- SECTION 4: Quiz -->
+  <section id="tab-quiz" class="tab-section">
+    <h2>Quiz</h2>
+    <p class="section-hint">Pick an answer for each question, then submit to see your results and weak areas.</p>
+    <div id="quiz-container">
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">?</div>
+        <h3>No quiz yet</h3>
+        <p>Generate notes first, then create a quiz from them.</p>
+        <button class="btn-secondary" onclick="switchTab('notes')">Go to Notes</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="submit-quiz-btn" style="display:none" onclick="submitQuiz()">Submit Quiz</button>
+      <button class="btn-secondary" id="reset-quiz-btn" style="display:none" onclick="resetQuiz()">Reset Quiz</button>
+    </div>
+    <div id="quiz-results"></div>
+  </section>
+
+  <!-- SECTION 5: Study Plan -->
+  <section id="tab-plan" class="tab-section">
+    <h2>Personalized Study Plan</h2>
+    <p class="section-hint">Tell us how much time you have - we'll build a day-by-day plan that focuses on your weak areas.</p>
+    <div class="card" id="plan-inputs">
+      <div class="field-row">
+        <div class="field">
+          <label for="days-input">Available Days</label>
+          <input id="days-input" type="number" value="7" min="1" max="30" />
+        </div>
+        <div class="field">
+          <label for="hours-input">Hours Per Day</label>
+          <input id="hours-input" type="number" value="2" min="0.5" max="12" step="0.5" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" onclick="generatePlan()">Generate Study Plan</button>
+        <div id="plan-status" class="status-msg"></div>
+      </div>
+    </div>
+    <div id="plan-content"></div>
+  </section>
+
+  <!-- SECTION 6: Shop -->
+  <section id="tab-shop" class="tab-section">
+    <h2>Upgrade Shop</h2>
+    <p class="section-hint">Coins build up while you study. Upgrades make future study sessions more rewarding.</p>
+    <div class="shop-summary">
+      <div>
+        <span class="shop-kicker">Coins</span>
+        <strong id="shop-coin-total">0</strong>
+      </div>
+      <div>
+        <span class="shop-kicker">Rate</span>
+        <strong id="shop-coin-rate">0/min</strong>
+      </div>
+      <div>
+        <span class="shop-kicker">Study Time</span>
+        <strong id="shop-study-time">0m</strong>
+      </div>
+    </div>
+    <div id="shop-grid" class="shop-grid"></div>
+  </section>
+
+  <!-- SECTION 7: Profile -->
+  <section id="tab-profile" class="tab-section">
+    <div class="profile-heading">
+      <div>
+        <h2>Your Profile</h2>
+        <p class="section-hint">A snapshot of your study journey, your plant, and the rewards you've earned.</p>
+      </div>
+      <button id="settings-btn" class="settings-gear-btn" type="button" onclick="openSettings()" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="profile-stats">
+      <div class="profile-stat">
+        <span class="profile-stat-label">Study time</span>
+        <strong id="profile-study-time">0m</strong>
+      </div>
+      <div class="profile-stat">
+        <span class="profile-stat-label">Coins</span>
+        <strong id="profile-coins">0</strong>
+      </div>
+      <div class="profile-stat">
+        <span class="profile-stat-label">Quizzes taken</span>
+        <strong id="profile-quizzes">0</strong>
+      </div>
+      <div class="profile-stat">
+        <span class="profile-stat-label">Avg score</span>
+        <strong id="profile-avg-score">0%</strong>
+      </div>
+    </div>
+
+    <div class="profile-section-title">Quiz history</div>
+    <div id="profile-history" class="profile-history">
+      <div class="profile-history-empty">No quizzes taken yet.</div>
+    </div>
+
+    <div class="profile-section-title" id="admin-unlock-trigger" onclick="adminTriggerClick()" style="cursor:default;user-select:none">Your plant</div>
+    <button id="admin-unlock-btn" onclick="adminUnlock()" style="display:none;margin-bottom:8px;padding:6px 14px;background:#6a1b9a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;letter-spacing:0.04em">&#x1F511; Admin Unlock</button>
+    <div class="profile-plant-showcase">
+      <div id="profile-plant-desc" class="profile-plant-desc">
+        <div class="profile-plant-desc-title">Select a level on the right</div>
+        <p class="profile-plant-desc-body">Click any tier to view its description. Reach a tier by earning study XP — then claim coins and unlock that tier's skin for your plant.</p>
+      </div>
+      <div class="profile-plant-center">
+        <div id="profile-plant-art" class="profile-plant-art"></div>
+        <div class="profile-plant-meta">
+          <span id="profile-plant-stage">Seed</span>
+          <span class="sep">·</span>
+          <span id="profile-plant-xp">0 XP</span>
+        </div>
+        <div class="profile-plant-healthbar">
+          <div id="profile-plant-health-fill" class="profile-plant-health-fill" style="width:100%"></div>
+        </div>
+      </div>
+      <div id="profile-level-tabs" class="profile-level-tabs"></div>
+    </div>
+  </section>
+
+  <!-- Settings modal -->
+  <div id="settings-overlay" class="settings-overlay" style="display:none" onclick="handleSettingsBackdrop(event)">
+    <div class="settings-modal" role="dialog" aria-labelledby="settings-title">
+      <div class="settings-header">
+        <h3 id="settings-title">Settings</h3>
+        <button type="button" class="settings-close" onclick="closeSettings()" aria-label="Close">×</button>
+      </div>
+
+      <div class="settings-body">
+        <div class="settings-group">
+          <div class="settings-group-title">Account</div>
+          <div class="settings-row">
+            <label>Email</label>
+            <span id="settings-email" class="settings-static">—</span>
+          </div>
+          <div class="settings-row">
+            <label>Session</label>
+            <button class="btn-secondary settings-inline-btn" type="button" onclick="closeSettings(); logout();">Log out</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">Appearance</div>
+          <div class="settings-row">
+            <label for="setting-dark-mode">Dark mode</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-dark-mode" onchange="updateSetting('darkMode', this.checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label for="setting-compact">Compact mode</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-compact" onchange="updateSetting('compactMode', this.checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">Notifications</div>
+          <div class="settings-row">
+            <label for="setting-toasts">Show toast notifications</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-toasts" onchange="updateSetting('toasts', this.checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <label for="setting-sound">Sound on correct / wrong</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-sound" onchange="updateSetting('sound', this.checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title">Study defaults</div>
+          <div class="settings-row">
+            <label for="setting-flashcards">Default flashcard count</label>
+            <input id="setting-flashcards" type="number" min="1" max="30"
+                   onchange="updateSetting('defaultFlashcards', parseInt(this.value) || 10)" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-quiz">Default quiz questions</label>
+            <input id="setting-quiz" type="number" min="1" max="20"
+                   onchange="updateSetting('defaultQuiz', parseInt(this.value) || 5)" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-plan-days">Default study plan days</label>
+            <input id="setting-plan-days" type="number" min="1" max="30"
+                   onchange="updateSetting('defaultPlanDays', parseInt(this.value) || 7)" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-plan-hours">Default hours per day</label>
+            <input id="setting-plan-hours" type="number" min="0.5" max="12" step="0.5"
+                   onchange="updateSetting('defaultPlanHours', parseFloat(this.value) || 2)" />
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-title danger">Danger zone</div>
+          <div class="settings-row">
+            <label>Reset settings</label>
+            <button class="btn-secondary settings-inline-btn danger" type="button" onclick="resetSettings()">Reset to defaults</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 8: Spotify -->
+  <section id="tab-spotify" class="tab-section">
+    <h2>Spotify</h2>
+    <p class="section-hint">Choose a Spotify device, then play a playlist or track while you study.</p>
+
+    <div class="spotify-panel">
+      <div class="spotify-panel-head">
+        <div>
+          <span class="spotify-kicker">Now Playing</span>
+          <strong id="spotify-now-title">Nothing playing</strong>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadSpotifyCurrent()">Refresh</button>
+      </div>
+      <div id="spotify-now-playing" class="spotify-now-playing">
+        <div class="spotify-empty">Connect Spotify and start playback to see the current song.</div>
+      </div>
+      <div id="spotify-playback-bar" class="spotify-playback-bar" style="display:none">
+        <button class="btn-secondary" id="spotify-play-btn" type="button" title="Resume playback">Play</button>
+        <button class="btn-secondary" id="spotify-pause-btn" type="button" title="Pause playback">Pause</button>
+        <button class="btn-secondary" id="spotify-next-btn" type="button" title="Skip to next track">Next</button>
+      </div>
+    </div>
+
+    <div class="spotify-panel">
+      <div class="spotify-panel-head">
+        <div>
+          <span class="spotify-kicker">Device</span>
+          <strong id="spotify-device-summary">No device selected</strong>
+        </div>
+        <button class="btn-secondary" type="button" onclick="loadSpotifyDevices()">Refresh Devices</button>
+      </div>
+      <div id="spotify-device-list" class="spotify-device-list"></div>
+    </div>
+
+    <div class="spotify-panel">
+      <div class="field">
+        <label for="spotify-search-input">Search Spotify</label>
+        <input id="spotify-search-input" type="text" autocomplete="off" placeholder="Playlist or song name" />
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="spotify-search-btn" type="button" onclick="searchSpotify()">Search</button>
+        <button class="btn-secondary" type="button" onclick="loadSpotifyPlaylists()">My Playlists</button>
+        <div id="spotify-status" class="status-msg"></div>
+      </div>
+      <div id="spotify-results" class="spotify-results"></div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  </div> <!-- /app-shell -->
+
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
